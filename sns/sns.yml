@@ -1,0 +1,69 @@
+Resources:
+  MyTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: ${self:custom.prefix}-topic
+
+  MyCustomLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: ${env:PROJECT_NAME}-sns-multiple-endpoint-creation-${sls:stage}
+      Code:
+        ZipFile: !Sub |
+            'use strict';
+            const response = require("cfn-response");
+            const AWS = require("aws-sdk");
+            const { REGION } = process.env;
+            AWS.config.update({ region: REGION });
+            AWS.config.apiVersions = {
+              sns: "2010-03-31",
+            };
+            const SNS = new AWS.SNS();
+            exports.handler = async (event, context) => {
+              const { TopicArn, EmailAddresses } = event.ResourceProperties;
+              console.log(TopicArn, EmailAddresses);
+              console.log(event);
+              if (!TopicArn || !EmailAddresses) {
+                return response.send(event, context, response.FAILED);
+              }
+              const SNSEmails = EmailAddresses.split(",");
+              try {
+                for (let email of SNSEmails) {
+                  await SNS.subscribe({
+                    Protocol: "email",
+                    TopicArn: TopicArn,
+                    Endpoint: email,
+                  }).promise();
+                }
+                return response.send(event, context, response.SUCCESS);
+              } catch (e) {
+                return response.send(event, context, response.FAILED);
+              }
+            };
+      Handler: index.handler
+      Role: arn:aws:iam::${aws:accountId}:role/lambda-sns
+      Runtime: nodejs14.x
+      Timeout: 180
+      Environment:
+         Variables:
+            REGION: ${env:AWS_REGION}
+
+  CreateMultipleEndPoints:
+    Type: 'Custom::EmailAddresses'
+    Properties:
+      ServiceToken: !GetAtt MyCustomLambda.Arn
+      EmailAddresses: !Ref EmailAddresses
+      TopicArn: !Ref MyTopic
+
+Parameters:
+  EmailAddresses:
+    Type: String
+    Default: ${env:EMAIL_IDS}
+
+
+
+
+
+
+
+  

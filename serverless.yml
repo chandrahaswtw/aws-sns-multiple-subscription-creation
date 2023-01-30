@@ -1,0 +1,32 @@
+service: ${env:PROJECT_NAME}
+frameworkVersion: '3'
+configValidationMode: error
+useDotenv: true
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-deployment-bucket
+  - serverless-apigateway-service-proxy
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  stage: ${opt:stage}
+  stackName: ${self:custom.prefix}
+  lambdaHashingVersion: 20201221
+  deploymentBucket:
+    name: chandrahas-deployment-bucket
+
+custom:
+  prefix: ${self:service}
+  dotenv:
+    include:
+      - PROJECT_NAME
+
+package:
+  individually: true
+  patterns:
+    - '!./**'
+
+resources:
+  - ${file(sns/sns.yml)}
